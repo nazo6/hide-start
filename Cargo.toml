@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.75"
 native-dialog = "0.7.0"
-serde = {version="1.0.192",features=["derive"]}
+serde = { version = "1.0.192", features = ["derive"] }
 toml = "0.8.8"

@@ -8,6 +8,7 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 struct Config {
     cmd: String,
+    wait: Option<bool>,
 }
 
 fn main() {
@@ -39,11 +40,21 @@ fn execute() -> Result<(), anyhow::Error> {
 
     let mut args = config.cmd.split_whitespace().collect::<Vec<_>>();
     let cmd = args.remove(0);
-    std::process::Command::new(cmd)
-        .args(args)
+    let mut cmd = std::process::Command::new(cmd);
+    cmd.args(args);
+
+    #[cfg(debug_assertions)]
+    dbg!(&cmd);
+
+    let mut child = cmd
         .creation_flags(0x08000000)
+        .stdout(std::process::Stdio::piped())
         .spawn()
         .context("Failed to spawn command")?;
+
+    if config.wait.unwrap_or(true) {
+        child.wait().context("Execution failed")?;
+    }
 
     Ok(())
 }
