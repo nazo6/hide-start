@@ -8,7 +8,8 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 struct Config {
     cmd: String,
-    wait: Option<bool>,
+    #[serde(default)]
+    wait: bool,
 }
 
 fn main() {
@@ -29,22 +30,38 @@ fn main() {
 }
 
 fn execute() -> Result<(), anyhow::Error> {
-    let mut exe_path = std::env::current_exe()?;
-    exe_path.set_extension("toml");
-    let config_path = exe_path;
-    let config = std::fs::read_to_string(&config_path).context(format!(
-        "Could not find config: {}",
-        config_path.to_string_lossy()
-    ))?;
-    let config = toml::from_str::<Config>(&config)?;
+    let args = std::env::args().collect::<Vec<String>>();
 
-    let mut args = config.cmd.split_whitespace().collect::<Vec<_>>();
-    let cmd = args.remove(0);
+    let (cmd, args, wait) = if args.len() > 1 {
+        let cmd = args[1].clone();
+        let args = if args.len() > 2 {
+            args[2..].to_vec()
+        } else {
+            vec![]
+        };
+        (cmd, args, true)
+    } else {
+        let mut exe_path = std::env::current_exe()?;
+        exe_path.set_extension("toml");
+        let config_path = exe_path;
+        let config = std::fs::read_to_string(&config_path).context(format!(
+            "Could not find config: {}",
+            config_path.to_string_lossy()
+        ))?;
+        let config = toml::from_str::<Config>(&config)?;
+
+        let mut args = config
+            .cmd
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>();
+        let cmd = args.remove(0);
+
+        (cmd, args, config.wait)
+    };
+
     let mut cmd = std::process::Command::new(cmd);
     cmd.args(args);
-
-    #[cfg(debug_assertions)]
-    dbg!(&cmd);
 
     let mut child = cmd
         .creation_flags(0x08000000)
@@ -52,7 +69,7 @@ fn execute() -> Result<(), anyhow::Error> {
         .spawn()
         .context("Failed to spawn command")?;
 
-    if config.wait.unwrap_or(true) {
+    if wait {
         child.wait().context("Execution failed")?;
     }
 
